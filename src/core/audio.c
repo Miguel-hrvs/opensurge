@@ -286,37 +286,34 @@ bool music_is_paused()
  * sound_load()
  * Loads a sample from a file
  */
-sound_t *sound_load(const char *path)
-{
+sound_t *sound_load(const char *path) {
     sound_t *s;
 
-    if(NULL == (s = resourcemanager_find_sample(path))) {
-        ALLEGRO_SAMPLE_INSTANCE* spl;
-        const char* fullpath = asset_path(path);
-        logfile_message("Loading sound \"%s\"...", fullpath);
-
-        /* build the sound object */
-        s = mallocx(sizeof *s);
-        s->duration = 0.0f;
-        s->end_time = 0.0f;
-        s->valid_id = false;
-        s->volume = 1.0f;
-        s->filepath = str_dup(path);
-        if(NULL == (s->sample = al_load_sample(fullpath)))
-            fatal_error("Can't load sound \"%s\"", path);
-
-        /* compute its duration */
-        if(NULL != (spl = al_create_sample_instance(s->sample))) {
-            s->duration = al_get_sample_instance_time(spl);
-            al_destroy_sample_instance(spl);
-        }
-
-        /* adding it to the resource manager */
-        resourcemanager_add_sample(path, s);
+    // Check if the sound is already loaded in the resource manager
+    if ((s = resourcemanager_find_sample(path))) {
+        // Increment the reference count
         resourcemanager_ref_sample(path);
+        return s;
     }
-    else
-        resourcemanager_ref_sample(path);
+
+    // Load the sound from the file
+    ALLEGRO_SAMPLE *sample = al_load_sample(asset_path(path));
+    if (!sample) {
+        fatal_error("Can't load sound \"%s\"", path);
+    }
+
+    // Create the sound object
+    s = mallocx(sizeof *s);
+    s->filepath = str_dup(path);
+    s->sample = sample;
+    s->duration = al_get_sample_length(sample);
+    s->end_time = s->duration;
+    s->valid_id = true;
+    s->volume = 1.0f;
+
+    // Add the sound to the resource manager
+    resourcemanager_add_sample(path, s);
+    resourcemanager_ref_sample(path);
 
     return s;
 }

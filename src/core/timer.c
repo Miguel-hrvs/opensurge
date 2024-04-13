@@ -26,7 +26,6 @@
 /* internal data */
 static double start_time = 0.0;
 static double current_time = 0.0;
-static double previous_time = 0.0;
 static double delta_time = 0.0;
 static double smooth_delta_time = 0.0;
 static int64_t frames = 0;
@@ -36,6 +35,8 @@ static double pause_duration = 0.0;
 static double pause_start_time = 0.0;
 
 static const double SMOOTH_FACTOR = 0.95;
+static const double MINIMUM_DELTA = 1.0 / 60.0; /* 60 fps */
+static const double MAXIMUM_DELTA = 1.0 / 50.0; /* 50 fps */
 
 /*
  * timer_init()
@@ -51,7 +52,6 @@ void timer_init()
 
     start_time = al_get_time();
     current_time = 0.0;
-    previous_time = 0.0;
     delta_time = 0.0;
     smooth_delta_time = 0.0;
     frames = 0;
@@ -60,7 +60,6 @@ void timer_init()
     pause_duration = 0.0;
     pause_start_time = 0.0;
 }
-
 
 /*
  * timer_release()
@@ -71,67 +70,61 @@ void timer_release()
     logfile_message("timer_release()");
 }
 
-
 /*
  * timer_update()
  * This routine must be called at every cycle of the main loop
  */
 void timer_update()
 {
-    const double minimum_delta = 1.0 / 60.0; /* 60 fps */
-    const double maximum_delta = 1.0 / 50.0; /* 50 fps */
-
-    /* paused timer? */
+    /* Paused timer? Return early */
     if(is_paused) {
         delta_time = 0.0;
         smooth_delta_time = 0.0;
         return;
     }
 
-    /* read the time at the beginning of this framestep */
-    current_time = timer_get_now();
+    /* Read the current time */
+    double new_time = al_get_time();
 
-    /* compute the delta time */
-    delta_time = current_time > previous_time ? current_time - previous_time : 0.0;
+    /* Compute the delta time */
+    delta_time = new_time - current_time;
 
-    if(delta_time < minimum_delta)
-        ; /* do nothing, since the framerate is controlled by Allegro */
+    /* Clamp delta time to a reasonable range */
+    if(delta_time < MINIMUM_DELTA)
+        delta_time = MINIMUM_DELTA;
+    else if(delta_time > MAXIMUM_DELTA)
+        delta_time = MAXIMUM_DELTA;
 
-    if(delta_time > maximum_delta)
-        delta_time = maximum_delta;
+    /* Update the current time */
+    current_time = new_time;
 
-    previous_time = current_time;
-
-    /* compute the smooth delta time */
+    /* Compute the smooth delta time */
     if(smooth_delta_time != 0.0)
         smooth_delta_time = SMOOTH_FACTOR * delta_time + (1.0 - SMOOTH_FACTOR) * smooth_delta_time;
     else
-        smooth_delta_time = minimum_delta;
+        smooth_delta_time = MINIMUM_DELTA;
 
-    /* increment counter */
+    /* Increment counter */
     ++frames;
 }
-
 
 /*
  * timer_get_delta()
  * Returns the time interval, in seconds, between the last two cycles of the main loop
  */
-float timer_get_delta()
+double timer_get_delta()
 {
-    return (float)delta_time;
+    return (double)delta_time;
 }
-
 
 /*
  * timer_get_smooth_delta()
  * An approximation of timer_get_delta() with variations smoothed out
  */
-float timer_get_smooth_delta()
+double timer_get_smooth_delta()
 {
-    return (float)smooth_delta_time;
+    return (double)smooth_delta_time;
 }
-
 
 /*
  * timer_get_elapsed()
@@ -143,7 +136,6 @@ double timer_get_elapsed()
     return current_time;
 }
 
-
 /*
  * timer_get_frames()
  * Number of framesteps since the application has started
@@ -152,7 +144,6 @@ int64_t timer_get_frames()
 {
     return frames;
 }
-
 
 /*
  * timer_get_now()
@@ -163,7 +154,6 @@ double timer_get_now()
 {
     return (al_get_time() - start_time) - pause_duration;
 }
-
 
 /*
  * timer_pause()
@@ -179,7 +169,6 @@ void timer_pause()
 
     logfile_message("The time manager has been paused");
 }
-
 
 /*
  * timer_resume()

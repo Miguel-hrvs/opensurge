@@ -29,8 +29,8 @@ void timer_update();
 void timer_release();
 
 /* main utilities */
-float timer_get_delta();
-float timer_get_smooth_delta();
+double timer_get_delta();
+double timer_get_smooth_delta();
 double timer_get_elapsed();
 double timer_get_now();
 int64_t timer_get_frames();
